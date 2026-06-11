@@ -283,6 +283,61 @@ fn reads_cannot_escape_the_world() {
     std::fs::remove_file(&secret).unwrap();
 }
 
+/// The ledger stores paths relative to working_dir, so provenance survives
+/// the checkout being moved or cloned; and the session keeps a diagnostic
+/// trail of what introduced taint.
+#[test]
+fn ledger_is_relative_and_taint_sources_are_recorded() {
+    let dir = world_dir("relative-ledger");
+    let cfg = config(&dir, Escalation::Reject, true);
+
+    let a = start_session(&cfg);
+    a.call("write_file", &args(&[("path", "memory/notes.md"), ("content", POISON)]));
+    drop(a);
+
+    // On-disk entries are relative — no absolute world prefix baked in.
+    let raw = std::fs::read_to_string(dir.join(".harness/taint.json")).unwrap();
+    let entries: Vec<String> = serde_json::from_str(&raw).unwrap();
+    assert_eq!(entries, vec!["memory/notes.md"]);
+
+    let b = start_session(&cfg);
+    b.call("read_file", &args(&[("path", "memory/notes.md")]));
+    assert_eq!(b.taint_sources(), vec!["read_file: memory/notes.md"]);
+
+    // The refusal names the source, so the operator can trace the poison.
+    let attack = b.call("write_file", &args(&[("path", "src/payload.rs"), ("content", "x")]));
+    assert_eq!(attack.kind, VerdictKind::Ask);
+    assert!(
+        attack.text.contains("read_file: memory/notes.md"),
+        "refusal must cite taint sources: {}",
+        attack.text
+    );
+}
+
+/// Rule ordering: an exhausted session must not be able to probe which tools
+/// would exist for the task — unlisted tools stay ABSENT even after the
+/// budget runs out.
+#[test]
+fn absent_wins_over_exhausted_budget() {
+    let dir = world_dir("absent-vs-budget");
+    let cfg = config(&dir, Escalation::Log, true);
+    let s = start_session(&cfg);
+
+    // Burn the entire budget.
+    loop {
+        let out = s.call("search", &args(&[("query", "x"), ("path", "memory")]));
+        if out.kind == VerdictKind::Deny {
+            break;
+        }
+    }
+
+    // git_log is real but not whitelisted for this task: still ABSENT,
+    // indistinguishable from a tool that never existed.
+    let probe = s.call("git_log", &Map::new());
+    assert_eq!(probe.kind, VerdictKind::Absent);
+    assert_eq!(probe.text, "unknown tool 'git_log'");
+}
+
 /// Search over a subtree containing an agent-written file also taints —
 /// taint propagates through any read-shaped channel, not just read_file.
 #[test]

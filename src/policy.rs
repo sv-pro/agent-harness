@@ -123,6 +123,13 @@ impl PolicyEngine {
         session_tainted: bool,
         taint_tracking: bool,
     ) -> Verdict {
+        // Rule 3: tool whitelist → ABSENT, matching its absence from
+        // tools/list. Checked before the budget so an exhausted session
+        // cannot probe which tools would exist for this task.
+        if !task.tools.iter().any(|t| t == spec.name) {
+            return Verdict::Absent;
+        }
+
         // Rule 2: step budget.
         if steps_taken >= task.policy.max_steps {
             return Verdict::Deny {
@@ -132,11 +139,6 @@ impl PolicyEngine {
                     steps_taken, task.policy.max_steps
                 ),
             };
-        }
-
-        // Rule 3: tool whitelist → ABSENT, matching its absence from tools/list.
-        if !task.tools.iter().any(|t| t == spec.name) {
-            return Verdict::Absent;
         }
 
         // Rule 4: writes must be explicitly enabled.

@@ -33,6 +33,12 @@ pub struct ToolRegistry {
     specs: Vec<ToolSpec>,
 }
 
+impl Default for ToolRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolRegistry {
     pub fn new() -> Self {
         let specs = vec![

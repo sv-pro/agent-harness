@@ -45,6 +45,8 @@ struct SessionInner {
     /// Set once this session has observed agent-written content. Never reset
     /// by set_task: a task switch must not launder provenance.
     tainted: bool,
+    /// Human-readable trail of what introduced taint, for diagnostics.
+    taint_sources: Vec<String>,
     ledger: TaintLedger,
 }
 
@@ -66,7 +68,7 @@ impl WorldSession {
             .with_context(|| {
                 format!("working_dir does not exist: {}", config.world.working_dir)
             })?;
-        let ledger = TaintLedger::load(base_dir.join(TaintLedger::DEFAULT_PATH));
+        let ledger = TaintLedger::load(base_dir.join(TaintLedger::DEFAULT_PATH), base_dir.clone());
         Ok(Self {
             policy: PolicyEngine::new(base_dir.clone()),
             registry: ToolRegistry::new(),
@@ -74,6 +76,7 @@ impl WorldSession {
                 active_task: None,
                 steps_taken: 0,
                 tainted: false,
+                taint_sources: Vec::new(),
                 ledger,
             }),
             config,
@@ -116,6 +119,11 @@ impl WorldSession {
     /// Whether this session has observed agent-written content.
     pub fn is_tainted(&self) -> bool {
         self.inner.lock().unwrap().tainted
+    }
+
+    /// Diagnostic trail of the paths that introduced taint into this session.
+    pub fn taint_sources(&self) -> Vec<String> {
+        self.inner.lock().unwrap().taint_sources.clone()
     }
 
     /// The policy chokepoint. Everything — rule evaluation, the symlink-aware
@@ -181,9 +189,14 @@ impl WorldSession {
             Verdict::Ask { reason } => match task.policy.escalation {
                 Escalation::Reject => {
                     tracing::warn!(tool, task = %task_name, %reason, "ASK -> rejected");
+                    let sources = if inner.taint_sources.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" [taint sources: {}]", inner.taint_sources.join(", "))
+                    };
                     return CallOutcome::refused(
                         VerdictKind::Ask,
-                        format!("escalation required: {reason} (escalation: reject)"),
+                        format!("escalation required: {reason} (escalation: reject){sources}"),
                     );
                 }
                 Escalation::AutoApprove => {
@@ -254,11 +267,17 @@ impl WorldSession {
                     }
                 }
                 SideEffect::Read | SideEffect::Execute => {
-                    if !inner.tainted && self.reads_tainted_source(&inner.ledger, spec, args) {
+                    if self.reads_tainted_source(&inner.ledger, spec, args) {
                         inner.tainted = true;
+                        // Keep the full trail, not just the first source.
+                        let source = format!("{tool}: {path_arg}");
+                        if !inner.taint_sources.contains(&source) {
+                            inner.taint_sources.push(source);
+                        }
                         tracing::warn!(
                             tool,
                             task = %task_name,
+                            path = %path_arg,
                             "session tainted: output derived from agent-written content"
                         );
                     }

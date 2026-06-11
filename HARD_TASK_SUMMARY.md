@@ -92,3 +92,26 @@ cargo test              # 8/8 integration tests pass
 
 Live stdio smoke test confirmed: ABSENT listing before/after `set_task`,
 the `list_changed` notification, and denial of a world-escaping read.
+
+## Merge addendum (`hard-merged`)
+
+This branch takes `hard-fable` as the base and ports the strengths of the
+parallel `hard-opus` implementation:
+
+1. **Relative-path taint ledger** — entries in `.harness/taint.json` are
+   stored relative to `working_dir` (still canonicalized first, so symlink
+   aliases keep matching), so provenance survives moving or cloning the
+   checkout.
+2. **`taint_sources` diagnostic trail** — the session records every
+   read-shaped call that introduced taint (`tool: path`), exposes it via
+   `WorldSession::taint_sources()`, and cites it in `escalation: reject`
+   refusals so the operator can trace the poison.
+3. **ABSENT wins over an exhausted budget** — the whitelist check (rule 3)
+   now runs before the step-budget check (rule 2), so a budget-exhausted
+   session cannot probe which tools would exist for a task.
+4. **Clippy clean** — `Default` impl for `ToolRegistry`; zero warnings.
+
+Verification on this branch: `cargo build --release` clean,
+`cargo test` 10/10 (two new tests:
+`ledger_is_relative_and_taint_sources_are_recorded`,
+`absent_wins_over_exhausted_budget`).
