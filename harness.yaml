@@ -1,0 +1,39 @@
+version: "1"
+
+world:
+  name: agent-harness-dev
+  working_dir: "."
+
+tasks:
+  triage:
+    description: >
+      Investigate a bug report or issue. Read-only: search the codebase,
+      read files, and inspect git history to produce a diagnosis.
+    tools: [search, read_file, git_log, git_diff]
+    policy:
+      allow_write: false
+      paths_whitelist: ["."]
+      require_approval: []
+      max_steps: 15
+
+  refactor:
+    description: >
+      Refactor code under src/ and tests/. Writes are allowed but gated:
+      every write_file is flagged for approval.
+    tools: [search, read_file, write_file, shell, git_log, git_diff]
+    policy:
+      allow_write: true
+      paths_whitelist: ["src", "tests"]
+      require_approval: [write_file]
+      max_steps: 30
+
+  review:
+    description: >
+      Review pending changes. Read-only: inspect diffs, history, and
+      source files to produce review feedback.
+    tools: [search, read_file, git_log, git_diff]
+    policy:
+      allow_write: false
+      paths_whitelist: ["."]
+      require_approval: []
+      max_steps: 20
