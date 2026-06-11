@@ -5,9 +5,25 @@ use serde_json::{json, Map, Value};
 
 use crate::tools;
 
+/// How a tool touches the world (Stage 2). Drives taint tracking: outputs of
+/// reads over agent-written state become tainted, and tainted sessions need
+/// an ASK verdict to reach a PersistentWrite tool again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SideEffect {
+    /// Pure observation (search, read_file, git_log, git_diff).
+    Read,
+    /// Runs code with transient effects (shell).
+    Execute,
+    /// Durably mutates the world (write_file).
+    PersistentWrite,
+    /// Harness control plane (set_task).
+    Meta,
+}
+
 pub struct ToolSpec {
     pub name: &'static str,
     pub description: &'static str,
+    pub side_effect: SideEffect,
     pub schema: Value,
 }
 
@@ -24,6 +40,7 @@ impl ToolRegistry {
                 name: "set_task",
                 description: "Meta-tool: select the active task from harness.yaml. \
                               Must be called before any other tool. Resets the step counter.",
+                side_effect: SideEffect::Meta,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -35,6 +52,7 @@ impl ToolRegistry {
             ToolSpec {
                 name: "search",
                 description: "Recursive grep-like search for a string in file contents.",
+                side_effect: SideEffect::Read,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -47,6 +65,7 @@ impl ToolRegistry {
             ToolSpec {
                 name: "read_file",
                 description: "Read the contents of a file relative to working_dir.",
+                side_effect: SideEffect::Read,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -59,6 +78,7 @@ impl ToolRegistry {
                 name: "write_file",
                 description: "Write content to a file relative to working_dir. \
                               Subject to allow_write and paths_whitelist policy.",
+                side_effect: SideEffect::PersistentWrite,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -72,6 +92,7 @@ impl ToolRegistry {
                 name: "shell",
                 description: "Run a shell command. cwd is working_dir/path and must be \
                               inside the task's paths_whitelist.",
+                side_effect: SideEffect::Execute,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -84,6 +105,7 @@ impl ToolRegistry {
             ToolSpec {
                 name: "git_log",
                 description: "Show the last N commits (git log --oneline).",
+                side_effect: SideEffect::Read,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -94,6 +116,7 @@ impl ToolRegistry {
             ToolSpec {
                 name: "git_diff",
                 description: "Show the diff against a git ref.",
+                side_effect: SideEffect::Read,
                 schema: json!({
                     "type": "object",
                     "properties": {

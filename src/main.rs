@@ -1,13 +1,7 @@
-mod policy;
-mod registry;
-mod server;
-mod tools;
-
+use agent_harness::policy::WorldConfig;
+use agent_harness::server::HarnessServer;
 use anyhow::Context;
 use rmcp::ServiceExt;
-
-use crate::policy::WorldConfig;
-use crate::server::HarnessServer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -30,6 +24,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(
         world = %config.world.name,
         version = %config.version,
+        taint_tracking = config.world.taint_tracking,
         tasks = ?config.tasks.keys().collect::<Vec<_>>(),
         "harness config loaded from {config_path}"
     );

@@ -1,6 +1,9 @@
 # Rust build artifacts
 /target/
 
+# Harness runtime state (taint ledger)
+/.harness/
+
 # Editor / OS noise
 *.swp
 *.swo

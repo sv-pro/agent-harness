@@ -3,6 +3,9 @@ version: "1"
 world:
   name: agent-harness-dev
   working_dir: "."
+  # Provenance tracking for persistent writes (ZombieAgent defense).
+  # The ledger lives in .harness/taint.json under working_dir.
+  taint_tracking: true
 
 tasks:
   triage:
@@ -26,6 +29,8 @@ tasks:
       paths_whitelist: ["src", "tests"]
       require_approval: [write_file]
       max_steps: 30
+      # ASK verdicts (require_approval, tainted writes): auto_approve | reject | log
+      escalation: log
 
   review:
     description: >
