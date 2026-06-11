@@ -1,13 +1,8 @@
-mod policy;
-mod registry;
-mod server;
-mod tools;
-
 use anyhow::Context;
 use rmcp::ServiceExt;
 
-use crate::policy::WorldConfig;
-use crate::server::HarnessServer;
+use agent_harness::policy::WorldConfig;
+use agent_harness::server::HarnessServer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

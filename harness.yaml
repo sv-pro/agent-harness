@@ -26,6 +26,9 @@ tasks:
       paths_whitelist: ["src", "tests"]
       require_approval: [write_file]
       max_steps: 30
+      # How ASK verdicts (rule 6, or a tainted value flowing into a
+      # persistent write) are resolved: auto_approve | log | reject.
+      escalation: auto_approve
 
   review:
     description: >

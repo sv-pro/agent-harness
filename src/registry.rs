@@ -3,11 +3,14 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde_json::{json, Map, Value};
 
+use crate::policy::{SideEffectType, TaskConfig};
 use crate::tools;
 
 pub struct ToolSpec {
     pub name: &'static str,
     pub description: &'static str,
+    /// What this tool can do to the world; drives taint provenance.
+    pub side_effect: SideEffectType,
     pub schema: Value,
 }
 
@@ -17,6 +20,12 @@ pub struct ToolRegistry {
     specs: Vec<ToolSpec>,
 }
 
+impl Default for ToolRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolRegistry {
     pub fn new() -> Self {
         let specs = vec![
@@ -24,6 +33,7 @@ impl ToolRegistry {
                 name: "set_task",
                 description: "Meta-tool: select the active task from harness.yaml. \
                               Must be called before any other tool. Resets the step counter.",
+                side_effect: SideEffectType::Read,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -35,6 +45,7 @@ impl ToolRegistry {
             ToolSpec {
                 name: "search",
                 description: "Recursive grep-like search for a string in file contents.",
+                side_effect: SideEffectType::Read,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -47,6 +58,7 @@ impl ToolRegistry {
             ToolSpec {
                 name: "read_file",
                 description: "Read the contents of a file relative to working_dir.",
+                side_effect: SideEffectType::Read,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -59,6 +71,7 @@ impl ToolRegistry {
                 name: "write_file",
                 description: "Write content to a file relative to working_dir. \
                               Subject to allow_write and paths_whitelist policy.",
+                side_effect: SideEffectType::PersistentWrite,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -72,6 +85,7 @@ impl ToolRegistry {
                 name: "shell",
                 description: "Run a shell command. cwd is working_dir/path and must be \
                               inside the task's paths_whitelist.",
+                side_effect: SideEffectType::Execute,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -84,6 +98,7 @@ impl ToolRegistry {
             ToolSpec {
                 name: "git_log",
                 description: "Show the last N commits (git log --oneline).",
+                side_effect: SideEffectType::Read,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -94,6 +109,7 @@ impl ToolRegistry {
             ToolSpec {
                 name: "git_diff",
                 description: "Show the diff against a git ref.",
+                side_effect: SideEffectType::Read,
                 schema: json!({
                     "type": "object",
                     "properties": {
@@ -108,6 +124,28 @@ impl ToolRegistry {
 
     pub fn specs(&self) -> &[ToolSpec] {
         &self.specs
+    }
+
+    /// The declared side effect for a tool, if known.
+    pub fn side_effect(&self, name: &str) -> Option<SideEffectType> {
+        self.specs
+            .iter()
+            .find(|s| s.name == name)
+            .map(|s| s.side_effect)
+    }
+
+    /// Names of the tools visible under ABSENT semantics (Stage 1): `set_task`
+    /// is always visible; everything else only when on the active task's
+    /// whitelist. With no active task, only `set_task` is visible.
+    pub fn visible_names(&self, task: Option<&TaskConfig>) -> Vec<&'static str> {
+        self.specs
+            .iter()
+            .filter(|s| {
+                s.name == "set_task"
+                    || task.is_some_and(|t| t.tools.iter().any(|x| x == s.name))
+            })
+            .map(|s| s.name)
+            .collect()
     }
 
     pub fn execute(&self, name: &str, base_dir: &Path, args: &Map<String, Value>) -> Result<String> {

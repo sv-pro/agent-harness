@@ -10,3 +10,6 @@
 
 # Local scratch
 *.log
+
+# Persistent taint ledger (per-checkout runtime state)
+/.harness/
