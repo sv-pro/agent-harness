@@ -1,7 +1,19 @@
-# agent-harness
+# agent-harness — model-evaluation fixture
 
-A portable, compiled MCP server (stdio transport) that acts as an **enforcement
-layer** for AI dev agents.
+> **What this is:** a reusable **model-evaluation fixture**, not a product and not
+> the flagship implementation. `HARD_TASK.md` is one hard, four-stage governance
+> prompt ("extend it in four interdependent stages; do not stop between stages");
+> the branches (`hard-opus`, `hard-fable`, and their merge) are different models'
+> attempts at it. The point was to **compare model implementations of the same
+> governance task**, not to ship an enforcement layer.
+>
+> **The maintained implementation** of agentic execution governance lives in
+> **[ai2rules](https://github.com/sv-pro/ai2rules)** (10-crate Rust harness). This
+> repo is recorded there in `DECISIONS.md` (D38) as an eval fixture — distinct from
+> the product lineage, and deliberately **kept, not archived**, for reuse.
+
+The fixture itself is a portable, compiled MCP server (stdio transport) that acts
+as an **enforcement layer** for AI dev agents.
 
 > **The Agent Hypervisor principle:** We do not make agents safe.
 > We make the world they live in safe.
